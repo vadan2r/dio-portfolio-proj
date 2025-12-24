@@ -30,21 +30,36 @@ class MainActivity : AppCompatActivity() {
     // Metodo responsavel por realizar o setup da view e recuperar os Ids do layout
     fun setupView() {
         //@TODO 1 - Recuperar os Id's da tela para a Activity com o findViewById
+        nomeUsuario = findViewById(R.id.usernameInput)
+        btnConfirmar = findViewById(R.id.confirmButton)
+        listaRepositories = findViewById(R.id.recyclerViewRepos)
+        setupListeners()
     }
 
     //metodo responsavel por configurar os listeners click da tela
     private fun setupListeners() {
         //@TODO 2 - colocar a acao de click do botao confirmar
+        btnConfirmar.setOnClickListener {
+            saveUserLocal()
+            getAllReposByUserName()
+        }
     }
 
 
     // salvar o usuario preenchido no EditText utilizando uma SharedPreferences
     private fun saveUserLocal() {
         //@TODO 3 - Persistir o usuario preenchido na editText com a SharedPref no listener do botao salvar
+        val prefs = getSharedPreferences("githubPrefs", MODE_PRIVATE)
+        prefs.edit().putString("username", nomeUsuario.text.toString()).apply()
     }
 
     private fun showUserName() {
         //@TODO 4- depois de persistir o usuario exibir sempre as informacoes no EditText  se a sharedpref possuir algum valor, exibir no proprio editText o valor salvo
+        val prefs = getSharedPreferences("githubPrefs", MODE_PRIVATE)
+        val savedUser = prefs.getString("username", "")
+        if (!savedUser.isNullOrEmpty()) {
+            nomeUsuario.setText(savedUser)
+        }
     }
 
     //Metodo responsavel por fazer a configuracao base do Retrofit
@@ -55,12 +70,34 @@ class MainActivity : AppCompatActivity() {
            URL_BASE da API do  GitHub= https://api.github.com/
            lembre-se de utilizar o GsonConverterFactory mostrado no curso
         */
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+        githubApi = retrofit.create(GitHubService::class.java)
     }
 
     //Metodo responsavel por buscar todos os repositorios do usuario fornecido
-    fun getAllReposByUserName() {
+    
         // TODO 6 - realizar a implementacao do callback do retrofit e chamar o metodo setupAdapter se retornar os dados com sucesso
+    fun getAllReposByUserName() {
+        val user = nomeUsuario.text.toString()
+        githubApi.listRepos(user).enqueue(object : Callback<List<Repository>> {
+            override fun onResponse(call: Call<List<Repository>>, response: Response<List<Repository>>) {
+                if (response.isSuccessful) {
+                    response.body()?.let { repos ->
+                        setupAdapter(repos)
+                    }
+                }
+            }
+
+            override fun onFailure(call: Call<List<Repository>>, t: Throwable) {
+                t.printStackTrace()
+            }
+        })
     }
+
 
     // Metodo responsavel por realizar a configuracao do adapter
     fun setupAdapter(list: List<Repository>) {
@@ -68,6 +105,11 @@ class MainActivity : AppCompatActivity() {
             @TODO 7 - Implementar a configuracao do Adapter , construir o adapter e instancia-lo
             passando a listagem dos repositorios
          */
+        val adapter = RepositoryAdapter(list, 
+            onShareClick = { repo -> shareRepositoryLink(repo.html_url) }, 
+            onItemClick = { repo -> openBrowser(repo.html_url) } 
+        ) 
+        listaRepositories.adapter = adapter
     }
 
 
